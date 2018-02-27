@@ -1,0 +1,116 @@
+plugins {
+    id "com.jfrog.bintray" version "1.7.3"
+}
+
+group 'onethreeseven'
+version '0.0.1-SNAPSHOT'
+ext.moduleName = 'onethreeseven.clustering'
+
+apply plugin: 'java'
+
+sourceCompatibility = 1.9
+
+allprojects {
+    repositories {
+        jcenter()
+        mavenCentral()
+    }
+    apply plugin: 'maven'
+    apply plugin: 'maven-publish'
+    apply plugin: 'java'
+    apply plugin: 'idea'
+}
+
+repositories {
+    mavenCentral()
+    mavenLocal()
+}
+
+dependencies {
+
+    compile group: 'onethreeseven', name: 'trajsuitePlugin', version: '0.0.1-SNAPSHOT'
+
+    //data-structures
+    compile (group: 'onethreeseven', name: 'datastructures', version: '0.0.4-SNAPSHOT') {force = true}
+
+    testCompile group: 'junit', name: 'junit', version: '4.12'
+}
+
+compileJava {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+        ]
+        classpath = files()
+    }
+}
+
+compileTestJava {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        options.compilerArgs = [
+                '--module-path', classpath.asPath,
+                '--add-modules', 'junit',
+                '--add-reads', "$moduleName=junit",
+                '--patch-module', "$moduleName=" + files(sourceSets.test.java.srcDirs).asPath,
+        ]
+        classpath = files()
+    }
+}
+
+test {
+    inputs.property("moduleName", moduleName)
+    doFirst {
+        jvmArgs = [
+                '--module-path', classpath.asPath,
+                '--add-modules', 'ALL-MODULE-PATH',
+                '--add-reads', "$moduleName=junit",
+                '--patch-module', "$moduleName=" + files(sourceSets.test.java.outputDir).asPath,
+        ]
+        classpath = files()
+    }
+}
+
+jar {
+    inputs.property("moduleName", moduleName)
+    manifest {
+        attributes(
+                'Automatic-Module-Name': moduleName,
+                "Implementation-Title": project.name,
+                "Implementation-Version": version,
+                'Built-By': System.getProperty('user.name'),
+                'Built-Date': new Date(),
+                'Built-JDK': System.getProperty('java.version'))
+    }
+}
+
+jar.dependsOn(test)
+
+task sourcesJar(type: Jar, dependsOn: classes) {
+    classifier = 'sources'
+    from sourceSets.main.allSource
+}
+
+javadoc{
+    options.addStringOption('-module-path', classpath.asPath)
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+    classifier = "javadoc"
+    from 'build/docs/javadoc'
+}
+
+artifacts {
+    archives jar
+    archives sourcesJar
+    archives javadocJar
+}
+
+idea {
+    module {
+        inheritOutputDirs = true
+        downloadJavadoc = true
+        downloadSources = true
+    }
+}
