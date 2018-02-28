@@ -8,7 +8,7 @@ import java.util.LinkedList;
  * A K-means clusters. A cluster of 2d points with a centroid.
  * @author Luke Bermingham
  */
-public class KMeansCluster implements Iterable<double[]> {
+public class KMeansCluster extends Cluster {
 
     private final LinkedList<double[]> points2d;
 
@@ -20,8 +20,15 @@ public class KMeansCluster implements Iterable<double[]> {
     }
 
     public void recomputeCentroid(){
-        //todo: compute the centroid of this cluster based on the points
-        throw new UnsupportedOperationException("To do");
+        double[] sumPoints = { 0.0f, 0.0f };
+
+        for (double[] point : this.points2d) {
+            sumPoints[0] += point[0];
+            sumPoints[1] += point[1];
+        }
+
+        this.centroid[0] = sumPoints[0] / this.points2d.size();
+        this.centroid[1] = sumPoints[1] / this.points2d.size();
     }
 
     public double distSqToCentroid(double[] pt){
@@ -30,9 +37,7 @@ public class KMeansCluster implements Iterable<double[]> {
         return a*a + b*b;
     }
 
-    public void add(double[] pt){
-        this.points2d.add(pt);
-    }
+    public void add(double[] pt){ this.points2d.add(pt); }
 
     public Collection<double[]> getPoints2d() {
         return points2d;

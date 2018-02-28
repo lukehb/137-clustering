@@ -27,6 +27,7 @@ repositories {
 }
 
 dependencies {
+    compile group: 'com.vividsolutions', name: 'jts', version: '1.13'
 
     //compile group: 'onethreeseven', name: 'trajsuitePlugin', version: '0.0.1-SNAPSHOT'
 
