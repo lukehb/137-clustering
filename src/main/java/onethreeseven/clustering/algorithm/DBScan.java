@@ -24,19 +24,19 @@ public class DBScan {
     private static final byte CLUSTER = (byte) 2;
 
     // Pass epsilon squared into run2d when using this distance function
-    public static Double euclidDistSq(double[] pt1, double[] pt2){
+    private static Double euclidDistSq(double[] pt1, double[] pt2){
         return pow(pt2[0] - pt1[0], 2) + pow(pt2[1] - pt1[1], 2);
     }
 
-    public static Double euclidDist(double[] pt1, double[] pt2){
+    private static Double euclidDist(double[] pt1, double[] pt2){
         return sqrt(pow(pt2[0] - pt1[0], 2) + pow(pt2[1] - pt1[1], 2));
     }
 
     public static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts){
-        return run2d(pts, epsilon, minPts, DBScan::euclidDist);
+        return run2d(pts, epsilon, minPts, DBScan::euclidDistSq);
     }
 
-    public static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc) {
+    private static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc) {
         if(epsilon < 0.0) {
             throw new IllegalArgumentException("Epsilon must not be less than 0");
         }
@@ -128,6 +128,8 @@ public class DBScan {
     }
 
     private static List<KdNode> getNeighbours(double[] pt, KdTree ptsDatabase, double epsilon, BiFunction<double[], double[], Double> distFunc){
+        double epsilonSq = epsilon * epsilon;
+
         double x1 = pt[0] - epsilon;
         double x2 = pt[0] + epsilon;
         double y1 = pt[1] - epsilon;
@@ -138,7 +140,7 @@ public class DBScan {
 
         for (KdNode node : nodesInBounds){
             double[] nodePt = {node.getX(), node.getY()};
-            if(distFunc.apply(nodePt, pt) <= epsilon) {
+            if(distFunc.apply(nodePt, pt) <= epsilonSq) {
                 neighbours.add(node);
             }
         }

@@ -91,12 +91,6 @@ public class DBScanTest {
         compareResult(clusters, testResult);
     }
 
-    @Test
-    public void run2dDistSq() {
-        DBScanCluster[] clusters = DBScan.run2d(testData, testEpsilon * testEpsilon, testMinPts, DBScan::euclidDistSq);
-        compareResult(clusters, testResult);
-    }
-
     private static void compareResult(DBScanCluster[] clusters, double[][][] testResultData){
         Assert.assertEquals(testResultData.length, clusters.length);
 
