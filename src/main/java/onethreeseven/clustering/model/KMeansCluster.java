@@ -16,7 +16,15 @@ public class KMeansCluster extends Cluster {
 
     public KMeansCluster(double[] centroid) {
         this.points2d = new LinkedList<>();
-        this.centroid = centroid;
+        this.centroid = centroid.clone();
+    }
+
+    public double[] getCentroid(){
+        return centroid;
+    }
+
+    public void setCentroid(double[] centroid){
+        this.centroid = centroid.clone();
     }
 
     public void recomputeCentroid(){

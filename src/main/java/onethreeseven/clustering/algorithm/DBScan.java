@@ -4,6 +4,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.index.kdtree.KdNode;
 import com.vividsolutions.jts.index.kdtree.KdTree;
+import onethreeseven.clustering.ClusterUtil;
 import onethreeseven.clustering.model.DBScanCluster;
 
 import java.util.ArrayList;
@@ -23,17 +24,8 @@ public class DBScan {
     private static final byte NOISE = (byte) 1;
     private static final byte CLUSTER = (byte) 2;
 
-    // Pass epsilon squared into run2d when using this distance function
-    private static Double euclidDistSq(double[] pt1, double[] pt2){
-        return pow(pt2[0] - pt1[0], 2) + pow(pt2[1] - pt1[1], 2);
-    }
-
-    private static Double euclidDist(double[] pt1, double[] pt2){
-        return sqrt(pow(pt2[0] - pt1[0], 2) + pow(pt2[1] - pt1[1], 2));
-    }
-
     public static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts){
-        return run2d(pts, epsilon, minPts, DBScan::euclidDistSq);
+        return run2d(pts, epsilon, minPts, ClusterUtil::euclidDistSq);
     }
 
     private static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc) {
