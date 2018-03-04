@@ -4,31 +4,52 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Envelope;
 import com.vividsolutions.jts.index.kdtree.KdNode;
 import com.vividsolutions.jts.index.kdtree.KdTree;
-import onethreeseven.clustering.ClusterUtil;
 import onethreeseven.clustering.model.DBScanCluster;
-
+import onethreeseven.common.util.Maths;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
-import java.util.function.BiFunction;
-
-import static java.lang.Math.pow;
-import static java.lang.Math.sqrt;
 
 /**
- * Todo: write documentation
- *
+ * Classic DBSCAN for 2d points. Using Kd-tree as a spatial index.
  * @author Nicholas Pace
+ * @author Luke Bermingham
  */
 public class DBScan {
     private static final byte UNLABELED = (byte) 0;
     private static final byte NOISE = (byte) 1;
     private static final byte CLUSTER = (byte) 2;
 
-    public static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts){
-        return run2d(pts, epsilon, minPts, ClusterUtil::euclidDistSq);
+    private final double epsilon;
+    private final int minPts;
+    private final KdTree ptsDatabase;
+    private final byte[] labels;
+    private final double[][] pts;
+
+    //////////////////////
+    //static methods
+    /////////////////////
+
+
+    /**
+     * Find density-based clusters using DBSCAN.
+     * @param points2d The 2d points to cluster
+     * @param epsilon How close points have to be to each other to be considered clusters.
+     * @param minPts The number of points a point must have surrounding it to grow a cluster.
+     * @return The clusters found.
+     */
+    public static Collection<DBScanCluster> run2d(double[][] points2d, double epsilon, int minPts) {
+        DBScan impl = new DBScan(points2d, epsilon, minPts);
+        return impl.run();
     }
 
-    private static DBScanCluster[] run2d(double[][] pts, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc) {
+    //////////////////////////////////
+    //Actual DBSCAN implementation
+    /////////////////////////////////
+
+
+    protected DBScan(double[][] pts, double epsilon, int minPts){
+
         if(epsilon < 0.0) {
             throw new IllegalArgumentException("Epsilon must not be less than 0");
         }
@@ -37,18 +58,28 @@ public class DBScan {
             throw new IllegalArgumentException("MinPts must not be less than 0");
         }
 
-        // Use kd-tree for efficient range queries
-        KdTree ptsDatabase = new KdTree();
-        for (int i = 0; i < pts.length; i++) {
-            double[] pt = pts[i];
-            ptsDatabase.insert(new Coordinate(pt[0], pt[1]), i);
+        if(pts == null || pts.length < 1){
+            throw new IllegalArgumentException("Points must be non-empty.");
         }
 
-        // Unknown number of clusters, use ArrayList for convenience
-        ArrayList<DBScanCluster> clusters = new ArrayList<>();
+        this.pts = pts;
+        this.minPts = minPts;
+        this.epsilon = epsilon;
 
-        // Keep track of processing state of each point
-        byte[] labels = new byte[pts.length];
+        // Keep track of the state of each point, that is, is the points labelled as: CLUSTER|UNLABELED|NOISE
+        this.labels = new byte[pts.length];
+
+        // Use kd-tree as out spatial index for doing the neighbour queries
+        this.ptsDatabase = new KdTree();
+        for (int i = 0; i < pts.length; i++) {
+            double[] pt = pts[i];
+            this.ptsDatabase.insert(new Coordinate(pt[0], pt[1]), i);
+        }
+    }
+
+    protected Collection<DBScanCluster> run(){
+
+        ArrayList<DBScanCluster> clusters = new ArrayList<>();
 
         for (int i = 0; i < pts.length; i++) {
             if(labels[i] != UNLABELED){
@@ -56,11 +87,11 @@ public class DBScan {
             }
 
             double[] pt = pts[i];
-            traversePoint(pt, i, clusters, ptsDatabase, labels, epsilon, minPts, distFunc);
+            traversePoint(pt, i, clusters);
         }
 
         // Create cluster containing all the left over noise points
-        DBScanCluster noise = new DBScanCluster();
+        DBScanCluster noise = new DBScanCluster(true);
         clusters.add(noise);
         for (int i = 0; i < pts.length; i++) {
             if(labels[i] == NOISE){
@@ -68,12 +99,13 @@ public class DBScan {
             }
         }
 
-        return clusters.toArray( new DBScanCluster[clusters.size()] );
+        return clusters;
+
     }
 
     // Start of traversal, mark as noise if below number of minimum neighbours threshold, traverse neighbours otherwise
-    private static void traversePoint(double[] pt, int index, ArrayList<DBScanCluster> clusters, KdTree ptsDatabase, byte[] labels, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc) {
-        List<KdNode> neighbours = getNeighbours(pt, ptsDatabase, epsilon, distFunc);
+    protected void traversePoint(double[] pt, int index, ArrayList<DBScanCluster> clusters) {
+        List<KdNode> neighbours = getNeighbours(pt);
         if(neighbours.size() < minPts){
             labels[index] = NOISE;
             return;
@@ -84,27 +116,43 @@ public class DBScan {
         DBScanCluster cluster = new DBScanCluster();
         clusters.add(cluster);
         cluster.add(pt);
-        for (KdNode neighbour : neighbours) {
-            int neighbourIndex = (int)neighbour.getData();
-
-            if(labels[neighbourIndex] != UNLABELED){
-                continue;
-            }
-
-            labels[neighbourIndex] = CLUSTER;
-
-            double[] neighbourPt = {neighbour.getX(), neighbour.getY()};
-            cluster.add(neighbourPt);
-            traverseNeighbour(neighbourPt, cluster, ptsDatabase, labels, epsilon, minPts, distFunc);
-        }
+        addToCluster(cluster, neighbours);
     }
 
-    private static void traverseNeighbour(double[] neighbourPt, DBScanCluster cluster, KdTree ptsDatabase, byte[] labels, double epsilon, int minPts, BiFunction<double[], double[], Double> distFunc){
-        List<KdNode> neighbours = getNeighbours(neighbourPt, ptsDatabase, epsilon, distFunc);
+    protected List<KdNode> getNeighbours(double[] pt){
+        double epsilonSq = epsilon * epsilon;
+
+        double x1 = pt[0] - epsilon;
+        double x2 = pt[0] + epsilon;
+        double y1 = pt[1] - epsilon;
+        double y2 = pt[1] + epsilon;
+
+        List nodesInBounds = ptsDatabase.query(new Envelope(x1, x2, y1, y2));
+        List<KdNode> neighbours = new ArrayList<>();
+
+        for (Object nodeObj : nodesInBounds){
+            if(nodeObj instanceof KdNode){
+                KdNode node = (KdNode) nodeObj;
+                double[] nodePt = {node.getX(), node.getY()};
+                double distToNode = Maths.distSq(nodePt, pt);
+                if(distToNode <= epsilonSq) {
+                    neighbours.add(node);
+                }
+            }
+        }
+
+        return neighbours;
+    }
+
+    protected void traverseNeighbour(DBScanCluster cluster, double[] neighbourPt){
+        List<KdNode> neighbours = getNeighbours(neighbourPt);
         if(neighbours.size() < minPts){
             return;
         }
+        addToCluster(cluster, neighbours);
+    }
 
+    protected void addToCluster(DBScanCluster cluster, List<KdNode> neighbours){
         for (KdNode neighbour : neighbours) {
             int index = (int)neighbour.getData();
 
@@ -115,28 +163,8 @@ public class DBScan {
             labels[index] = CLUSTER;
             double[] pt = {neighbour.getX(), neighbour.getY()};
             cluster.add(pt);
-            traverseNeighbour(pt, cluster, ptsDatabase, labels, epsilon, minPts, distFunc);
+            traverseNeighbour(cluster, pt);
         }
     }
 
-    private static List<KdNode> getNeighbours(double[] pt, KdTree ptsDatabase, double epsilon, BiFunction<double[], double[], Double> distFunc){
-        double epsilonSq = epsilon * epsilon;
-
-        double x1 = pt[0] - epsilon;
-        double x2 = pt[0] + epsilon;
-        double y1 = pt[1] - epsilon;
-        double y2 = pt[1] + epsilon;
-
-        List<KdNode> nodesInBounds = ptsDatabase.query(new Envelope(x1, x2, y1, y2));
-        List<KdNode> neighbours = new ArrayList<>();
-
-        for (KdNode node : nodesInBounds){
-            double[] nodePt = {node.getX(), node.getY()};
-            if(distFunc.apply(nodePt, pt) <= epsilonSq) {
-                neighbours.add(node);
-            }
-        }
-
-        return neighbours;
-    }
 }

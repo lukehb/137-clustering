@@ -3,10 +3,7 @@ package onethreeseven.clustering.algorithm;
 import onethreeseven.clustering.model.KMeansCluster;
 import org.junit.Assert;
 import org.junit.Test;
-
 import java.util.Collection;
-
-import static org.junit.Assert.*;
 
 public class KMeansTest {
     private static final int testK = 3;
@@ -72,7 +69,7 @@ public class KMeansTest {
     };
 
     @Test
-    public void run2d() {
+    public void testFind3Clusters() {
         KMeansCluster[] clusters = KMeans.run2d(testData, testK, testCentroids);
         compareResult(clusters, testResult);
     }
@@ -80,16 +77,16 @@ public class KMeansTest {
     private static void compareResult(KMeansCluster[] clusters, double[][][] testResultData){
         Assert.assertEquals(testResultData.length, clusters.length);
 
-        for (int i = 0; i < clusters.length; i++) {
+        for (KMeansCluster cluster1 : clusters) {
             int matches = 0;
             int resultLength = 0;
-            Collection<double[]> cluster = clusters[i].getPoints2d();
+            Collection<double[]> cluster = cluster1.getPoints2d();
 
-            for (int k = 0; k < testResultData.length; k++) {
+            for (double[][] aTestResultData : testResultData) {
                 matches = 0;
-                resultLength = testResultData[k].length;
+                resultLength = aTestResultData.length;
                 for (int j = 0; j < resultLength; j++) {
-                    double[] testResultClusterPoint = testResultData[k][j];
+                    double[] testResultClusterPoint = aTestResultData[j];
                     for (double[] clusterPoint : cluster) {
                         if (clusterPoint[0] == testResultClusterPoint[0] && clusterPoint[1] == testResultClusterPoint[1]) {
                             matches++;
@@ -98,7 +95,7 @@ public class KMeansTest {
                     }
                 }
 
-                if(matches == resultLength){
+                if (matches == resultLength) {
                     break;
                 }
             }
