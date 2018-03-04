@@ -1,8 +1,6 @@
 package onethreeseven.clustering.model;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.LinkedList;
+import java.util.*;
 
 /**
  * A K-means clusters. A cluster of 2d points with a centroid.
@@ -56,4 +54,19 @@ public class KMeansCluster extends Cluster {
         return points2d.iterator();
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof KMeansCluster)) return false;
+        KMeansCluster doubles = (KMeansCluster) o;
+        return Arrays.equals(centroid, doubles.centroid) &&
+                super.equals(o);
+    }
+
+    @Override
+    public int hashCode() {
+        int result = Objects.hash(super.hashCode(), points2d);
+        result = 31 * result + Arrays.hashCode(centroid);
+        return result;
+    }
 }

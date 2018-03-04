@@ -51,22 +51,28 @@ public class KMeans {
         }
 
         KMeans impl = new KMeans();
-        double[][] initialCentroids = impl.calculateInitialCentroids(pts, k, j, j);
+        int subsampleSize = (int) ((pts.length / j) * 0.25d);
+        //cap sample size to be smaller than the number of pts / nSolutions
+        //but if that is too small set it to 10 or the number pts in the data-set, whichever is smaller.
+        subsampleSize = Math.min(Math.max(subsampleSize, 10), pts.length);
+
+        if(subsampleSize + k > pts.length){
+            throw new IllegalArgumentException("Subsample size is too big, must be smaller than the number of points - k");
+        }
+
+        double[][] initialCentroids = impl.calculateInitialCentroids(pts, k, subsampleSize, j);
         return run2d(pts, k, initialCentroids);
     }
 
     /**
      * Runs k-means and initialises the starting centroids using Bradley and Fayyad's method.
-     * The number of starting configurations is explored is 5% of the data-set or 10, whichever is larger.
+     * By default using 20 different starting configurations for centroids.
      * @param pts The points we wish to cluster.
      * @param k The number of clusters we want.
      * @return K clusters.
      */
     public static KMeansCluster[] run2d(double[][] pts, int k) {
-        double sampleNum = pts.length * 0.05;
-        //ensure we evaluate at least 10 different starting configurations
-        int j = (int) Math.max(10, sampleNum);
-        return run2d(pts, k, j);
+        return run2d(pts, k, 20);
     }
 
     //////////////////////////////
@@ -266,23 +272,41 @@ public class KMeans {
      */
     protected double[][] calculateInitialCentroids(double[][] pts, int k, int subsampleSize, int nSolutions) {
         KMeansCluster[][] candidateClusters = new KMeansCluster[nSolutions][];
-        int[] randomPointIndices = findUniqueRandomInRange(pts.length, subsampleSize * nSolutions);
-        int[] randomCentroidIndices = findUniqueRandomInRange(subsampleSize, k * nSolutions);
+
         double[][] allRandomPoints = new double[subsampleSize * nSolutions][];
 
+        //make indices 0...pts.length - 1
+        int[] allIndices = new int[pts.length];
+        for (int i = 0; i < pts.length; i++) {
+            allIndices[i] = i;
+        }
+
         for(int i = 0; i < nSolutions; i++){
+
+            //shuffle the indices
+            Maths.shuffle(allIndices);
+            //generate indices for out random subsamples and random centroids
+            int[] randomPointIndices = new int[subsampleSize];
+            int[] randomCentroidIndices = new int[k];
+
+            //fill these array with indices
+            System.arraycopy(allIndices, 0, randomPointIndices, 0, subsampleSize);
+            System.arraycopy(allIndices, subsampleSize, randomCentroidIndices, 0, k);
+
             double[][] randomPoints = new double[subsampleSize][];
             double[][] randomCentroids = new double[k][];
 
             for(int j = 0; j < subsampleSize; j++) {
                 int pointIndex = j + i * subsampleSize;
-                randomPoints[j] = pts[randomPointIndices[pointIndex]];
-                allRandomPoints[pointIndex] = pts[randomPointIndices[pointIndex]];
+                int randomPtIdx = randomPointIndices[j];
+                double[] randomPt = pts[randomPtIdx];
+                randomPoints[j] = randomPt;
+                allRandomPoints[pointIndex] = randomPt;
             }
 
             for(int j = 0; j < k; j++) {
-                int pointIndex = j + i * k;
-                randomCentroids[j] = randomPoints[randomCentroidIndices[pointIndex]];
+                int randomCentroidIdx = randomCentroidIndices[j];
+                randomCentroids[j] = pts[randomCentroidIdx];
             }
 
             candidateClusters[i] = initClusters(randomPoints, k, randomCentroids);
@@ -295,7 +319,7 @@ public class KMeans {
         for(int i = 0; i < nSolutions; i++) {
             double[][] preparedCentroids = new double[k][];
             for(int j = 0; j < k; j++){
-                preparedCentroids[j] = candidateClusters[i][k].getCentroid();
+                preparedCentroids[j] = candidateClusters[i][j].getCentroid();
             }
 
             secondPassClusters[i] = initClusters(allRandomPoints, k, preparedCentroids);
@@ -306,6 +330,9 @@ public class KMeans {
     }
 
     protected int[] findUniqueRandomInRange(int upper, int numOutputs) {
+        if(numOutputs > upper){
+            throw new IllegalArgumentException("The number of outputs is greater than the number of points we have to work with.");
+        }
         int[] outputs = new int[numOutputs];
         ArrayList<Integer> list = new ArrayList<>();
         for (int i = 0; i < upper; i++) {

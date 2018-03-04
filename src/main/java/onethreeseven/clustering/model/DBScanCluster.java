@@ -42,35 +42,7 @@ public class DBScanCluster extends Cluster {
         if (this == o) return true;
         if (!(o instanceof DBScanCluster)) return false;
         DBScanCluster otherCluster = (DBScanCluster) o;
-
-        if(isNoise != otherCluster.isNoise){
-            return false;
-        }
-
-        //compare cluster size and ensure they are same size
-        if(this.points2d.size() != otherCluster.points2d.size()){
-            return false;
-        }
-
-        int nMatches = 0;
-
-        for (double[] thisPt : points2d) {
-            Iterator<double[]> otherPtIter = otherCluster.points2d.iterator();
-            boolean foundMatch = false;
-            while(otherPtIter.hasNext() && !foundMatch){
-                double[] otherPt = otherPtIter.next();
-                if(Arrays.equals(thisPt, otherPt)){
-                    foundMatch = true;
-                    nMatches++;
-                }
-            }
-            if(!foundMatch){
-                return false;
-            }
-        }
-
-        //found a match for every point in this cluster in the other cluster
-        return nMatches == this.points2d.size();
+        return isNoise == otherCluster.isNoise && super.equals(o);
     }
 
     @Override
