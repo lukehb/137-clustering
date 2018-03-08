@@ -1,14 +1,9 @@
 package onethreeseven.clustering.algorithm;
 
-import onethreeseven.clustering.command.KmeansCommand;
 import onethreeseven.clustering.model.KMeansCluster;
-import onethreeseven.trajsuitePlugin.model.BaseTrajSuiteProgram;
-import onethreeseven.trajsuitePlugin.model.BoundingCoordinates;
 import org.junit.Assert;
 import org.junit.Test;
 import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class KMeansTest {
 
@@ -61,60 +56,13 @@ public class KMeansTest {
 
         ArrayList<double[]> pts = new ArrayList<>();
         for (KMeansCluster cluster : testResult) {
-            for (double[] pt : cluster) {
-                pts.add(pt);
-            }
+            pts.addAll(cluster.getPoints2d());
         }
         testData = new double[pts.size()][2];
         for (int i = 0; i < pts.size(); i++) {
             testData[i] = pts.get(i);
         }
 
-
-    }
-
-
-    @Test
-    public void testRunKMeansCommand(){
-        BaseTrajSuiteProgram program = BaseTrajSuiteProgram.getInstance();
-
-        final AtomicReference<KMeansCluster[]> output = new AtomicReference<>();
-
-        KmeansCommand command = new KmeansCommand(){
-            @Override
-            protected void outputKClusters(KMeansCluster[] clusters) {
-                output.set(clusters);
-            }
-        };
-
-        program.getCLI().addCommand(command);
-
-        String[] args = new String[]{"kmeans", "-k", "3"};
-
-        //populate layers with bounding
-        for (int i = 0; i < testResult.length; i++) {
-
-            KMeansCluster cluster = testResult[i];
-
-            BoundingCoordinates coords = new BoundingCoordinates() {
-                @Override
-                public Iterator<double[]> geoCoordinateIter() {
-                    throw new UnsupportedOperationException("No geo iter in this test.");
-                }
-
-                @Override
-                public Iterator<double[]> coordinateIter() {
-                    return cluster.iterator();
-                }
-            };
-
-            program.getLayers().add("Points", "PointSet-" + i, coords);
-
-        }
-
-        program.getCLI().doCommand(args);
-
-        compareResult(output.get(), testResult);
 
     }
 

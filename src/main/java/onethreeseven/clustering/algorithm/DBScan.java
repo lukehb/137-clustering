@@ -6,9 +6,9 @@ import com.vividsolutions.jts.index.kdtree.KdNode;
 import com.vividsolutions.jts.index.kdtree.KdTree;
 import onethreeseven.clustering.model.DBScanCluster;
 import onethreeseven.common.util.Maths;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
+
+import java.util.*;
+import java.util.function.Consumer;
 
 /**
  * Classic DBSCAN for 2d points. Using Kd-tree as a spatial index.
@@ -25,6 +25,7 @@ public class DBScan {
     private final KdTree ptsDatabase;
     private final byte[] labels;
     private final double[][] pts;
+    private final Consumer<Double> progressListener;
 
     //////////////////////
     //static methods
@@ -39,7 +40,20 @@ public class DBScan {
      * @return The clusters found.
      */
     public static Collection<DBScanCluster> run2d(double[][] points2d, double epsilon, int minPts) {
-        DBScan impl = new DBScan(points2d, epsilon, minPts);
+        DBScan impl = new DBScan(points2d, epsilon, minPts, null);
+        return impl.run();
+    }
+
+    /**
+     * Find density-based clusters using DBSCAN.
+     * @param points2d The 2d points to cluster
+     * @param epsilon How close points have to be to each other to be considered clusters.
+     * @param minPts The number of points a point must have surrounding it to grow a cluster.
+     * @param progressListener Progress listener for the algorithm, reports between 0 and 1, where 1 is finished processing.
+     * @return The clusters found.
+     */
+    public static Collection<DBScanCluster> run2d(double[][] points2d, double epsilon, int minPts, Consumer<Double> progressListener) {
+        DBScan impl = new DBScan(points2d, epsilon, minPts, progressListener);
         return impl.run();
     }
 
@@ -48,7 +62,9 @@ public class DBScan {
     /////////////////////////////////
 
 
-    protected DBScan(double[][] pts, double epsilon, int minPts){
+    protected DBScan(double[][] pts, double epsilon, int minPts, Consumer<Double> progressListener){
+
+        this.progressListener = progressListener;
 
         if(epsilon < 0.0) {
             throw new IllegalArgumentException("Epsilon must not be less than 0");
@@ -79,7 +95,7 @@ public class DBScan {
 
     protected Collection<DBScanCluster> run(){
 
-        ArrayList<DBScanCluster> clusters = new ArrayList<>();
+        LinkedList<DBScanCluster> clusters = new LinkedList<>();
 
         for (int i = 0; i < pts.length; i++) {
             if(labels[i] != UNLABELED){
@@ -88,24 +104,43 @@ public class DBScan {
 
             double[] pt = pts[i];
             traversePoint(pt, i, clusters);
+
+            if(progressListener != null){
+                double progress = (double)i / pts.length;
+                progressListener.accept(progress);
+            }
+
         }
 
         // Create cluster containing all the left over noise points
         DBScanCluster noise = new DBScanCluster(true);
-        clusters.add(noise);
         for (int i = 0; i < pts.length; i++) {
             if(labels[i] == NOISE){
                 noise.add(pts[i]);
             }
         }
 
+        //done clustering now
+        //exclude any clusters with one points only and them to the noise cluster
+        Iterator<DBScanCluster> iter = clusters.iterator();
+        while(iter.hasNext()){
+            DBScanCluster cluster = iter.next();
+            if(cluster.getPoints2d().size() <= 1){
+                iter.remove();
+                noise.getPoints2d().addAll(cluster.getPoints2d());
+            }
+        }
+
+        //add the noise cluster after removing the single point clusters
+        clusters.add(noise);
+
         return clusters;
 
     }
 
     // Start of traversal, mark as noise if below number of minimum neighbours threshold, traverse neighbours otherwise
-    protected void traversePoint(double[] pt, int index, ArrayList<DBScanCluster> clusters) {
-        List<KdNode> neighbours = getNeighbours(pt);
+    protected void traversePoint(double[] pt, int index, List<DBScanCluster> clusters) {
+        Queue<KdNode> neighbours = getNeighbours(pt);
         if(neighbours.size() < minPts){
             labels[index] = NOISE;
             return;
@@ -116,10 +151,10 @@ public class DBScan {
         DBScanCluster cluster = new DBScanCluster();
         clusters.add(cluster);
         cluster.add(pt);
-        addToCluster(cluster, neighbours);
+        growCluster(cluster, neighbours);
     }
 
-    protected List<KdNode> getNeighbours(double[] pt){
+    protected Queue<KdNode> getNeighbours(double[] pt){
         double epsilonSq = epsilon * epsilon;
 
         double x1 = pt[0] - epsilon;
@@ -128,7 +163,7 @@ public class DBScan {
         double y2 = pt[1] + epsilon;
 
         List nodesInBounds = ptsDatabase.query(new Envelope(x1, x2, y1, y2));
-        List<KdNode> neighbours = new ArrayList<>();
+        Queue<KdNode> neighbours = new ArrayDeque<>();
 
         for (Object nodeObj : nodesInBounds){
             if(nodeObj instanceof KdNode){
@@ -144,27 +179,52 @@ public class DBScan {
         return neighbours;
     }
 
-    protected void traverseNeighbour(DBScanCluster cluster, double[] neighbourPt){
-        List<KdNode> neighbours = getNeighbours(neighbourPt);
-        if(neighbours.size() < minPts){
+    protected void addDensityConnectedPts(double[] neighbourPt, Queue<KdNode> neighbours){
+        Queue<KdNode> moreNeighbours = getNeighbours(neighbourPt);
+        //the density connected condition
+        if(moreNeighbours.size() < minPts){
             return;
         }
-        addToCluster(cluster, neighbours);
+
+        //go through neighbours and make sure they aren't already assigned to a cluster
+        Iterator<KdNode> iter = moreNeighbours.iterator();
+        while(iter.hasNext()){
+            KdNode node = iter.next();
+            Object data = node.getData();
+            if(data instanceof Integer){
+                Integer idx = (Integer) data;
+                if(labels[idx] == CLUSTER){
+                    iter.remove();
+                }
+            }
+        }
+
+        //add more neighbours to current
+        neighbours.addAll(moreNeighbours);
     }
 
-    protected void addToCluster(DBScanCluster cluster, List<KdNode> neighbours){
-        for (KdNode neighbour : neighbours) {
-            int index = (int)neighbour.getData();
+    protected void growCluster(DBScanCluster cluster, Queue<KdNode> neighbours){
 
-            if(labels[index] != UNLABELED){
+        while(!neighbours.isEmpty()){
+            //remove the current entry
+            KdNode neighbour = neighbours.poll();
+            int index = (int) neighbour.getData();
+
+            //some other cluster has claimed this one
+            if(labels[index] == CLUSTER){
                 continue;
             }
 
+            //but if label is NOISE or UNLABELLED, this cluster will take it
             labels[index] = CLUSTER;
             double[] pt = {neighbour.getX(), neighbour.getY()};
             cluster.add(pt);
-            traverseNeighbour(cluster, pt);
+
+            //have a look at neighbours of the current point
+            addDensityConnectedPts(pt, neighbours);
+
         }
+
     }
 
 }

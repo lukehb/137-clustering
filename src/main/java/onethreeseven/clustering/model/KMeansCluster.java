@@ -45,13 +45,8 @@ public class KMeansCluster extends Cluster {
 
     public void add(double[] pt){ this.points2d.add(pt); }
 
-    public Collection<double[]> getPoints2d() {
+    public List<double[]> getPoints2d() {
         return points2d;
-    }
-
-    @Override
-    public Iterator<double[]> iterator(){
-        return points2d.iterator();
     }
 
     @Override
@@ -69,4 +64,5 @@ public class KMeansCluster extends Cluster {
         result = 31 * result + Arrays.hashCode(centroid);
         return result;
     }
+
 }

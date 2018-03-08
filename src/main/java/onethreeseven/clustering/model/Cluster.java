@@ -1,11 +1,15 @@
 package onethreeseven.clustering.model;
 
+import onethreeseven.geo.model.LatLonBounds;
+import onethreeseven.trajsuitePlugin.model.BoundingCoordinates;
+
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.List;
 
-public abstract class Cluster implements Iterable<double[]> {
-    public abstract Collection<double[]> getPoints2d();
+public abstract class Cluster implements BoundingCoordinates {
+    public abstract List<double[]> getPoints2d();
 
     @Override
     public boolean equals(Object o) {
@@ -43,6 +47,26 @@ public abstract class Cluster implements Iterable<double[]> {
     @Override
     public int hashCode() {
         return getPoints2d().hashCode();
+    }
+
+    @Override
+    public Iterator<double[]> geoCoordinateIter() {
+        return null;
+    }
+
+    @Override
+    public LatLonBounds getLatLonBounds() {
+        return null;
+    }
+
+    @Override
+    public Iterator<double[]> coordinateIter() {
+        return getPoints2d().iterator();
+    }
+
+    @Override
+    public String toString(){
+        return "Cluster (" + getPoints2d().size() + " points)";
     }
 
 }

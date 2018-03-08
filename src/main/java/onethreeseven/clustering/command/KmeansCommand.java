@@ -2,19 +2,14 @@ package onethreeseven.clustering.command;
 
 import com.beust.jcommander.Parameter;
 import onethreeseven.clustering.algorithm.KMeans;
+import onethreeseven.clustering.model.Cluster;
 import onethreeseven.clustering.model.KMeansCluster;
-import onethreeseven.jclimod.CLICommand;
-import onethreeseven.trajsuitePlugin.model.BoundingCoordinates;
-import onethreeseven.trajsuitePlugin.model.EntityConsumer;
-import onethreeseven.trajsuitePlugin.model.EntitySupplier;
-
-import java.util.*;
 
 /**
  * The CLI command to run K-means from {@link KMeans}.
  * @author Luke Bermingham
  */
-public class KmeansCommand extends CLICommand {
+public class KmeansCommand extends AbstractClusteringCommand {
 
     @Parameter(names = {"-k", "--kClusters"}, description = "The desired number of clusters to find.")
     private int k;
@@ -24,6 +19,24 @@ public class KmeansCommand extends CLICommand {
     @Override
     protected String getUsage() {
         return "kmeans -k 3";
+    }
+
+    @Override
+    protected double[] getClusterAnnotationCartesianCoord(Cluster cluster) {
+        if(cluster instanceof KMeansCluster){
+            return ((KMeansCluster) cluster).getCentroid();
+        }
+        return null;
+    }
+
+    @Override
+    protected Cluster[] doClustering() {
+        return KMeans.run2d(points2d, k);
+    }
+
+    @Override
+    protected boolean clusterShouldBeVisibleOnLoad(Cluster cluster) {
+        return true;
     }
 
     @Override
@@ -41,65 +54,6 @@ public class KmeansCommand extends CLICommand {
             return false;
         }
         return true;
-    }
-
-    protected double[][] getPointsToCluster(){
-        //initialise points 2d
-        int nPts = 0;
-        ArrayList<double[]> pileOPoints = new ArrayList<>();
-
-        boolean foundEntitySupplier = false;
-
-        //get some points to cluster
-        ServiceLoader<EntitySupplier> serviceLoader = ServiceLoader.load(EntitySupplier.class);
-        for (EntitySupplier entitySupplier : serviceLoader) {
-            foundEntitySupplier = true;
-
-            Map<Class, Collection<Object>> selected = entitySupplier.supplyAllSelected();
-            for (Collection<Object> selectedObjs : selected.values()) {
-                for (Object selectedObj : selectedObjs) {
-                    if(selectedObj instanceof BoundingCoordinates){
-                        BoundingCoordinates coords = (BoundingCoordinates) selectedObj;
-                        Iterator<double[]> coordIter = coords.coordinateIter();
-                        while(coordIter.hasNext()){
-                            pileOPoints.add(coordIter.next());
-                            nPts++;
-                        }
-                    }
-                }
-            }
-        }
-
-        //if could not find entity supplier
-        if(!foundEntitySupplier){
-            System.err.println("No entity supplier found to supply selected entity for k-means clustering.");
-            return new double[][]{};
-        }
-
-        double[][] points2d = new double[nPts][2];
-
-        for (int i = 0; i < pileOPoints.size(); i++) {
-            double[] point2d = pileOPoints.get(i);
-            points2d[i] = point2d;
-        }
-        return points2d;
-    }
-
-    @Override
-    protected boolean runImpl() {
-        KMeansCluster[] clusters = KMeans.run2d(points2d, k);
-        outputKClusters(clusters);
-        return true;
-    }
-
-    protected void outputKClusters(KMeansCluster[] clusters){
-        ServiceLoader<EntityConsumer> serviceLoader = ServiceLoader.load(EntityConsumer.class);
-        for (EntityConsumer entityConsumer : serviceLoader) {
-            for (int i = 0; i < clusters.length; i++) {
-                KMeansCluster cluster = clusters[i];
-                entityConsumer.consume("K-Means Clusters", "Cluster k-" + i, cluster);
-            }
-        }
     }
 
     @Override
@@ -130,5 +84,15 @@ public class KmeansCommand extends CLICommand {
     @Override
     public String getDescription() {
         return "Runs k-means clustering on all selected entities with coordinates.";
+    }
+
+    @Override
+    protected String getClusterLayerName() {
+        return "K-Means Clusters";
+    }
+
+    @Override
+    protected String getClusterPrefix(Cluster cluster) {
+        return "Cluster k-";
     }
 }

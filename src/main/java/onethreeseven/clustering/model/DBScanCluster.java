@@ -28,13 +28,8 @@ public class DBScanCluster extends Cluster {
         this.isNoise = isNoise;
     }
 
-    public Collection<double[]> getPoints2d() {
+    public List<double[]> getPoints2d() {
         return points2d;
-    }
-
-    @Override
-    public Iterator<double[]> iterator(){
-        return points2d.iterator();
     }
 
     @Override

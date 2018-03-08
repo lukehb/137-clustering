@@ -121,7 +121,7 @@ public class KMeans {
 
         for (int i = 0; i < clusters.length; i++) {
             KMeansCluster cluster = clusters[i];
-            Iterator<double[]> ptIter = cluster.iterator();
+            Iterator<double[]> ptIter = cluster.coordinateIter();
             while (ptIter.hasNext()) {
 
                 //get current point and distance to owning cluster's centroid
@@ -327,24 +327,6 @@ public class KMeans {
         }
 
         return retrieveLeastDistortedCentroids(secondPassClusters, allRandomPoints);
-    }
-
-    protected int[] findUniqueRandomInRange(int upper, int numOutputs) {
-        if(numOutputs > upper){
-            throw new IllegalArgumentException("The number of outputs is greater than the number of points we have to work with.");
-        }
-        int[] outputs = new int[numOutputs];
-        ArrayList<Integer> list = new ArrayList<>();
-        for (int i = 0; i < upper; i++) {
-            list.add(i);
-        }
-
-        Collections.shuffle(list);
-        for (int i = 0; i < numOutputs; i++) {
-            outputs[i] = list.get(i);
-        }
-
-        return outputs;
     }
 
 
