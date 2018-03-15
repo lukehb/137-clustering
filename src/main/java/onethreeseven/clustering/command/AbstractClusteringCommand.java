@@ -53,7 +53,9 @@ public abstract class AbstractClusteringCommand extends CLICommand{
             double[] annotationCoord = getClusterAnnotationCartesianCoord(cluster);
             if(annotationCoord != null){
                 double[] centroidLatLon = projection.cartesianToGeographic(annotationCoord);
-                payload.additionalPrefabs.add(new LabelPrefab(id, centroidLatLon));
+                LabelPrefab labelPrefab = new LabelPrefab(id, centroidLatLon);
+                labelPrefab.doesScale.setValue(true);
+                payload.additionalPrefabs.add(labelPrefab);
             }
 
             String layername = getClusterLayerName();
